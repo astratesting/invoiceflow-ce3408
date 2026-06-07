@@ -14,12 +14,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -70,7 +70,7 @@ model Client {
 model Invoice {
   id          String      @id @default(cuid())
   number      String      @unique
-  status      InvoiceStatus @default(DRAFT)
+  status      String      @default("DRAFT")
   issueDate   DateTime    @default(now())
   dueDate     DateTime
   paidDate    DateTime?
@@ -103,12 +103,4 @@ model InvoiceItem {
   invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@index([invoiceId])
-}
-
-enum InvoiceStatus {
-  DRAFT
-  SENT
-  PAID
-  OVERDUE
-  CANCELLED
 }

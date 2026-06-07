@@ -1,6 +1,5 @@
 // src/app/invoices/[id]/page.tsx
-import { getServerSession } from "next-auth";
-import { authConfig } from "@/auth";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
 import Link from "next/link";
@@ -13,7 +12,7 @@ interface Params {
 }
 
 export default async function InvoiceDetailPage({ params }: Params) {
-  const session = await getServerSession(authConfig);
+  const session = await auth();
 
   if (!session?.user?.id) {
     redirect("/sign-in");

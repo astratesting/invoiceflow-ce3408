@@ -1,10 +1,9 @@
 // src/app/page.tsx - Landing Page
 import Link from "next/link";
-import { getServerSession } from "next-auth";
-import { authConfig } from "@/auth";
+import { auth } from "@/auth";
 
 export default async function HomePage() {
-  const session = await getServerSession(authConfig);
+  const session = await auth();
 
   return (
     <div className="min-h-screen calm-gradient">

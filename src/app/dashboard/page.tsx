@@ -1,13 +1,12 @@
 // src/app/dashboard/page.tsx
-import { getServerSession } from "next-auth";
-import { authConfig } from "@/auth";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { redirect } from "next/navigation";
 
 export default async function DashboardPage() {
-  const session = await getServerSession(authConfig);
+  const session = await auth();
 
   if (!session?.user?.id) {
     redirect("/sign-in");

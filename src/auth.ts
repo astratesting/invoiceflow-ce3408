@@ -1,4 +1,5 @@
 // src/auth.ts
+import NextAuth from "next-auth";
 import type { NextAuthConfig } from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
@@ -68,4 +69,4 @@ export const authConfig: NextAuthConfig = {
   },
 };
 
-export default authConfig;
+export const { handlers, auth } = NextAuth(authConfig);
