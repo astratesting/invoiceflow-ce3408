@@ -1,6 +1,6 @@
 """
 InvoiceFlow FastAPI Backend
-Provides additional API endpoints for external integrations.
+Provides REST API for invoice and client management with SQLite.
 """
 
 from fastapi import FastAPI, HTTPException, Depends, status
@@ -20,7 +20,7 @@ app = FastAPI(
 # CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://invoiceflow.com"],
+    allow_origins=["http://localhost:3000", "http://localhost:3001"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -31,24 +31,33 @@ DB_PATH = os.getenv("DATABASE_URL", "file:./dev.db").replace("file:", "")
 
 
 # Models
-class InvoiceResponse(BaseModel):
-    id: str
+class InvoiceItemModel(BaseModel):
+    name: str
+    description: Optional[str] = None
+    quantity: float
+    rate: float
+    amount: float
+
+
+class InvoiceCreate(BaseModel):
     number: str
-    status: str
-    issueDate: datetime
-    dueDate: datetime
+    clientId: str
+    dueDate: str
+    notes: Optional[str] = None
+    taxRate: float = 0
+    subtotal: float
+    taxAmount: float
     total: float
-    clientName: str
-    clientEmail: str
+    items: List[InvoiceItemModel]
+    status: str = "DRAFT"
 
 
-class ClientResponse(BaseModel):
-    id: str
+class ClientCreate(BaseModel):
     name: str
     email: str
-    company: Optional[str]
-    invoiceCount: int
-    totalBilled: float
+    company: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
 
 
 # Database helper
@@ -75,160 +84,152 @@ async def health_check():
     return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
 
 
-@app.get("/api/invoices", response_model=List[InvoiceResponse])
+@app.get("/api/invoices")
 async def list_invoices(
     status: Optional[str] = None,
     db: sqlite3.Connection = Depends(get_db)
 ):
-    """List all invoices, optionally filtered by status."""
     query = """
         SELECT i.id, i.number, i.status, i.issueDate, i.dueDate, i.total,
                c.name as clientName, c.email as clientEmail
-        FROM Invoice i
-        JOIN Client c ON i.clientId = c.id
+        FROM invoices i
+        JOIN clients c ON i.clientId = c.id
     """
     params = []
     if status:
         query += " WHERE i.status = ?"
         params.append(status)
 
-    query += " ORDER BY i.createdAt DESC"
-
     cursor = db.execute(query, params)
     rows = cursor.fetchall()
-
     return [dict(row) for row in rows]
 
 
 @app.get("/api/invoices/{invoice_id}")
 async def get_invoice(invoice_id: str, db: sqlite3.Connection = Depends(get_db)):
-    """Get a specific invoice with all details."""
-    cursor = db.execute("""
-        SELECT i.*, c.name as clientName, c.email as clientEmail,
-               c.company, c.phone, c.address
-        FROM Invoice i
-        JOIN Client c ON i.clientId = c.id
-        WHERE i.id = ?
-    """, (invoice_id,))
-
+    cursor = db.execute(
+        """SELECT i.*, c.name as clientName, c.email as clientEmail,
+                  c.company, c.phone, c.address
+           FROM invoices i
+           JOIN clients c ON i.clientId = c.id
+           WHERE i.id = ?""",
+        (invoice_id,)
+    )
     invoice = cursor.fetchone()
+
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
-    # Get line items
-    items_cursor = db.execute("""
-        SELECT * FROM InvoiceItem
-        WHERE invoiceId = ?
-        ORDER BY "order" ASC
-    """, (invoice_id,))
+    cursor = db.execute(
+        "SELECT * FROM invoice_items WHERE invoiceId = ? ORDER BY `order`",
+        (invoice_id,)
+    )
+    items = [dict(row) for row in cursor.fetchall()]
 
-    items = [dict(row) for row in items_cursor.fetchall()]
-
-    result = dict(invoice)
-    result["items"] = items
-
-    return result
+    return {**dict(invoice), "items": items}
 
 
-@app.get("/api/clients", response_model=List[ClientResponse])
-async def list_clients(db: sqlite3.Connection = Depends(get_db)):
-    """List all clients with their invoice summary."""
-    cursor = db.execute("""
-        SELECT c.*,
-               COUNT(i.id) as invoiceCount,
-               COALESCE(SUM(i.total), 0) as totalBilled
-        FROM Client c
-        LEFT JOIN Invoice i ON c.id = i.clientId
-        GROUP BY c.id
-        ORDER BY c.createdAt DESC
-    """)
+@app.post("/api/invoices", status_code=status.HTTP_201_CREATED)
+async def create_invoice(invoice: InvoiceCreate, db: sqlite3.Connection = Depends(get_db)):
+    try:
+        cursor = db.execute(
+            """INSERT INTO invoices
+               (id, number, status, issueDate, dueDate, subtotal, taxRate, taxAmount, total, notes, userId, clientId)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                invoice.number,
+                invoice.number,
+                invoice.status,
+                datetime.utcnow().isoformat(),
+                invoice.dueDate,
+                invoice.subtotal,
+                invoice.taxRate,
+                invoice.taxAmount,
+                invoice.total,
+                invoice.notes,
+                "backend-user",
+                invoice.clientId,
+            )
+        )
+        invoice_id = cursor.lastrowid
 
-    rows = cursor.fetchall()
-    return [dict(row) for row in rows]
+        for idx, item in enumerate(invoice.items):
+            db.execute(
+                """INSERT INTO invoice_items (id, name, description, quantity, rate, amount, `order`, invoiceId)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    f"{invoice.number}-{idx}",
+                    item.name,
+                    item.description,
+                    item.quantity,
+                    item.rate,
+                    item.amount,
+                    idx,
+                    invoice.number,
+                )
+            )
 
-
-@app.get("/api/clients/{client_id}")
-async def get_client(client_id: str, db: sqlite3.Connection = Depends(get_db)):
-    """Get a specific client with all their invoices."""
-    cursor = db.execute("SELECT * FROM Client WHERE id = ?", (client_id,))
-    client = cursor.fetchone()
-
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
-
-    # Get client invoices
-    invoices_cursor = db.execute("""
-        SELECT * FROM Invoice
-        WHERE clientId = ?
-        ORDER BY createdAt DESC
-    """, (client_id,))
-
-    invoices = [dict(row) for row in invoices_cursor.fetchall()]
-
-    result = dict(client)
-    result["invoices"] = invoices
-
-    return result
-
-
-@app.get("/api/stats")
-async def get_stats(db: sqlite3.Connection = Depends(get_db)):
-    """Get invoice statistics."""
-    # Total revenue
-    total_cursor = db.execute("SELECT COALESCE(SUM(total), 0) as total FROM Invoice")
-    total = total_cursor.fetchone()["total"]
-
-    # By status
-    status_cursor = db.execute("""
-        SELECT status, COUNT(*) as count, COALESCE(SUM(total), 0) as amount
-        FROM Invoice
-        GROUP BY status
-    """)
-    by_status = {row["status"]: {"count": row["count"], "amount": row["amount"]}
-                  for row in status_cursor.fetchall()}
-
-    # Invoice count
-    count_cursor = db.execute("SELECT COUNT(*) as count FROM Invoice")
-    count = count_cursor.fetchone()["count"]
-
-    # Client count
-    client_cursor = db.execute("SELECT COUNT(*) as count FROM Client")
-    client_count = client_cursor.fetchone()["count"]
-
-    return {
-        "totalRevenue": total,
-        "invoiceCount": count,
-        "clientCount": client_count,
-        "byStatus": by_status
-    }
+        db.commit()
+        return {"id": invoice.number, "number": invoice.number}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.post("/api/payments/{invoice_id}")
-async def record_payment(
+@app.put("/api/invoices/{invoice_id}")
+async def update_invoice_status(
     invoice_id: str,
-    amount: float,
-    payment_date: Optional[str] = None,
+    new_status: str,
     db: sqlite3.Connection = Depends(get_db)
 ):
-    """Record a payment for an invoice."""
-    cursor = db.execute("SELECT * FROM Invoice WHERE id = ?", (invoice_id,))
-    invoice = cursor.fetchone()
-
-    if not invoice:
-        raise HTTPException(status_code=404, detail="Invoice not found")
-
-    paid_date = payment_date or datetime.utcnow().isoformat()
-
-    db.execute("""
-        UPDATE Invoice
-        SET status = 'PAID', paidDate = ?, updatedAt = ?
-        WHERE id = ?
-    """, (paid_date, datetime.utcnow().isoformat(), invoice_id))
+    db.execute("UPDATE invoices SET status = ? WHERE id = ?", (new_status, invoice_id))
     db.commit()
+    return {"status": "updated"}
 
-    return {"message": "Payment recorded", "invoiceId": invoice_id, "status": "PAID"}
+
+@app.get("/api/clients")
+async def list_clients(db: sqlite3.Connection = Depends(get_db)):
+    cursor = db.execute("SELECT * FROM clients")
+    clients = cursor.fetchall()
+
+    result = []
+    for client in clients:
+        cursor = db.execute(
+            "SELECT COUNT(*) as cnt, SUM(total) as total FROM invoices WHERE clientId = ?",
+            (client["id"],)
+        )
+        stats = cursor.fetchone()
+        result.append({
+            **dict(client),
+            "invoiceCount": stats["cnt"] or 0,
+            "totalBilled": stats["total"] or 0,
+        })
+
+    return result
+
+
+@app.post("/api/clients", status_code=status.HTTP_201_CREATED)
+async def create_client(client: ClientCreate, db: sqlite3.Connection = Depends(get_db)):
+    try:
+        db.execute(
+            """INSERT INTO clients (id, name, email, company, phone, address)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                f"client-{datetime.utcnow().timestamp()}",
+                client.name,
+                client.email,
+                client.company,
+                client.phone,
+                client.address,
+            )
+        )
+        db.commit()
+        return {"status": "created"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
