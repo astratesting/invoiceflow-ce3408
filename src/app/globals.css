@@ -1,63 +1,96 @@
-/* src/app/globals.css */
+/* src/app/globals.css - Bold Frontier Design System */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Satoshi:wght@300;400;500;700;900&family=Archivo+Black&display=swap');
 
 :root {
-  --color-sky: #87CEEB;
-  --color-sky-light: #B0E0FF;
-  --color-sky-dark: #5BA3D9;
-  --color-mint: #98FB98;
-  --color-mint-light: #C1FFC1;
-  --color-mint-dark: #6BE66B;
-  --color-sand: #F4A460;
-  --color-sand-light: #F8D8A4;
-  --color-sand-dark: #C87A30;
-  --color-cream: #FAFAF0;
+  /* Bold Frontier Palette */
+  --color-near-black: #1A1A1A;
+  --color-flame-orange: #FF6B35;
+  --color-vivid-magenta: #D63384;
+  --color-acid-green: #A8E000;
+
+  /* Extended palette */
+  --color-charcoal: #2D2D2D;
+  --color-slate: #4A4A4A;
+  --color-cream: #FFF9F0;
+  --color-white: #FFFFFF;
 }
 
 body {
-  font-family: 'Geist', system-ui, -apple-system, sans-serif;
-  background-color: var(--color-cream);
-  color: #334155;
+  font-family: 'Satoshi', system-ui, -apple-system, sans-serif;
+  background-color: var(--color-near-black);
+  color: var(--color-cream);
+  min-height: 100vh;
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Lora', Georgia, serif;
+  font-family: 'Archivo Black', 'Satoshi', sans-serif;
+  letter-spacing: -0.02em;
 }
 
+/* Oversized headings */
+h1 { font-size: clamp(3rem, 8vw, 7rem); line-height: 0.9; }
+h2 { font-size: clamp(2rem, 5vw, 4rem); line-height: 1; }
+
 @layer components {
-  .calm-gradient {
-    background: linear-gradient(135deg, #FAFAF0 0%, #B0E0FF 50%, #C1FFC1 100%);
+  .bold-gradient {
+    background: linear-gradient(135deg, var(--color-near-black) 0%, var(--color-charcoal) 100%);
   }
 
-  .sky-gradient {
-    background: linear-gradient(180deg, #B0E0FF 0%, #87CEEB 100%);
+  .flame-gradient {
+    background: linear-gradient(135deg, var(--color-flame-orange) 0%, #FF8C42 100%);
   }
 
-  .soft-card {
-    background: linear-gradient(145deg, rgba(250,250,240,0.9) 0%, rgba(176,224,255,0.3) 100%);
+  .magenta-gradient {
+    background: linear-gradient(135deg, var(--color-vivid-magenta) 0%, #E633A3 100%);
+  }
+
+  .acid-gradient {
+    background: linear-gradient(135deg, var(--color-acid-green) 0%, #C5FF00 100%);
   }
 
   .btn-primary {
-    @apply bg-sky text-white px-6 py-3 rounded-soft font-medium hover:bg-sky-dark transition-all shadow-soft hover:shadow-soft-lg;
+    @apply bg-[#FF6B35] text-white px-8 py-4 rounded-none font-bold hover:bg-[#FF8C42] transition-all hover:scale-105 uppercase tracking-wide text-sm;
   }
 
   .btn-secondary {
-    @apply bg-white/80 backdrop-blur-sm text-sky-dark px-6 py-3 rounded-soft font-medium border border-sky/30 hover:bg-sky/10 transition-all;
+    @apply border-2 border-[#FF6B35] text-[#FF6B35] px-8 py-4 rounded-none font-bold hover:bg-[#FF6B35] hover:text-white transition-all uppercase tracking-wide text-sm;
+  }
+
+  .btn-magenta {
+    @apply bg-[#D63384] text-white px-8 py-4 rounded-none font-bold hover:bg-[#E633A3] transition-all hover:scale-105 uppercase tracking-wide text-sm;
+  }
+
+  .btn-green {
+    @apply bg-[#A8E000] text-[#1A1A1A] px-8 py-4 rounded-none font-bold hover:bg-[#C5FF00] transition-all hover:scale-105 uppercase tracking-wide text-sm;
   }
 
   .input-field {
-    @apply w-full px-4 py-3 rounded-soft border border-sky-light/50 bg-white/70 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-sky/50 focus:border-sky transition-all;
+    @apply w-full px-4 py-3 bg-[#2D2D2D] border-2 border-[#4A4A4A] text-white placeholder-[#4A4A4A] focus:outline-none focus:border-[#FF6B35] transition-all;
   }
 
   .card {
-    @apply soft-card rounded-soft-lg shadow-soft p-6 hover:shadow-soft-lg transition-all;
+    @apply bg-[#2D2D2D] border-2 border-[#4A4A4A] p-6 hover:border-[#FF6B35] transition-all;
   }
 
   .status-badge {
-    @apply px-3 py-1 rounded-full text-xs font-medium;
+    @apply px-3 py-1 text-xs font-bold uppercase tracking-wide;
+  }
+
+  .beam {
+    @apply absolute inset-0 overflow-hidden pointer-events-none;
+  }
+
+  .beam::before {
+    content: '';
+    @apply absolute top-0 left-1/4 w-px h-full bg-gradient-to-b from-transparent via-[#FF6B35]/20 to-transparent;
+  }
+
+  .beam::after {
+    content: '';
+    @apply absolute top-0 right-1/4 w-px h-full bg-gradient-to-b from-transparent via-[#D63384]/20 to-transparent;
   }
 }
