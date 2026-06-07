@@ -1,161 +1,130 @@
-import { PrismaClient } from "@prisma/client";
-import { auth } from "@/app/api/auth/[...nextauth]/auth";
-import Link from "next/link";
-import { redirect } from "next/navigation";
-
-const prisma = new PrismaClient();
+import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 export default async function DashboardPage() {
   const session = await auth();
 
   if (!session?.user?.id) {
-    redirect("/login");
+    redirect('/login');
   }
 
-  const [invoices, clients, invoiceStats] = await Promise.all([
+  const [invoiceCount, clientCount, recentInvoices] = await Promise.all([
+    prisma.invoice.count({
+      where: { userId: session.user.id },
+    }),
+    prisma.client.count({
+      where: { userId: session.user.id },
+    }),
     prisma.invoice.findMany({
       where: { userId: session.user.id },
+      take: 5,
+      orderBy: { createdAt: 'desc' },
       include: { client: true },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-    }),
-    prisma.client.findMany({
-      where: { userId: session.user.id },
-      orderBy: { name: "asc" },
-    }),
-    prisma.invoice.groupBy({
-      by: ["status"],
-      where: { userId: session.user.id },
-      _count: { status: true },
-      _sum: { total: true },
     }),
   ]);
 
-  const stats = {
-    total: invoiceStats.reduce((acc, s) => acc + (s._sum.total || 0), 0),
-    draft: invoiceStats.find((s) => s.status === "DRAFT")?._count.status || 0,
-    sent: invoiceStats.find((s) => s.status === "SENT")?._count.status || 0,
-    paid: invoiceStats.find((s) => s.status === "PAID")?._count.status || 0,
-    overdue: invoiceStats.find((s) => s.status === "OVERDUE")?._count.status || 0,
-    clientCount: clients.length,
-  };
+  const totalRevenue = await prisma.invoice.aggregate({
+    where: {
+      userId: session.user.id,
+      status: 'PAID',
+    },
+    _sum: { total: true },
+  });
 
   return (
-    <div className="min-h-screen bg-calm-white">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-serif font-bold">InvoiceFlow</h1>
-          <nav className="flex gap-6 items-center">
-            <Link href="/dashboard" className="text-gray-900 font-medium">
-              Dashboard
-            </Link>
-            <Link href="/invoices" className="text-gray-600 hover:text-gray-900">
-              Invoices
-            </Link>
-            <Link href="/clients" className="text-gray-600 hover:text-gray-900">
-              Clients
-            </Link>
-            <form action="/api/auth/signout" method="post">
-              <button type="submit" className="text-gray-600 hover:text-gray-900">
-                Sign out
-              </button>
-            </form>
-          </nav>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Welcome */}
-        <div className="mb-8">
-          <h2 className="text-3xl font-serif font-bold text-gray-900">
-            Welcome back, {session.user.name || "User"}!
-          </h2>
-          <p className="mt-2 text-gray-600">
-            Here&apos;s an overview of your invoicing activity.
-          </p>
-        </div>
+    <div className="min-h-screen bg-calm-white p-8">
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-3xl font-bold text-gray-800 mb-8">
+          Welcome, {session.user.name || 'User'}
+        </h1>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-          <div className="card bg-gradient-to-br from-calm-sky/10 to-calm-sky/5">
-            <p className="text-sm text-gray-600">Total Revenue</p>
-            <p className="text-3xl font-bold mt-2">${stats.total.toFixed(2)}</p>
+        <div className="grid md:grid-cols-3 gap-6 mb-8">
+          <div className="card bg-white p-6 rounded-lg shadow-md">
+            <h3 className="text-gray-600 text-sm font-medium">Total Invoices</h3>
+            <p className="text-3xl font-bold text-calm-sky mt-2">
+              {invoiceCount}
+            </p>
           </div>
-          <div className="card bg-gradient-to-br from-calm-mint/10 to-calm-mint/5">
-            <p className="text-sm text-gray-600">Paid Invoices</p>
-            <p className="text-3xl font-bold mt-2">{stats.paid}</p>
+          <div className="card bg-white p-6 rounded-lg shadow-md">
+            <h3 className="text-gray-600 text-sm font-medium">
+              Total Clients
+            </h3>
+            <p className="text-3xl font-bold text-calm-mint mt-2">
+              {clientCount}
+            </p>
           </div>
-          <div className="card bg-gradient-to-br from-calm-sand/10 to-calm-sand/5">
-            <p className="text-sm text-gray-600">Outstanding</p>
-            <p className="text-3xl font-bold mt-2">{stats.sent + stats.overdue}</p>
-          </div>
-          <div className="card">
-            <p className="text-sm text-gray-600">Clients</p>
-            <p className="text-3xl font-bold mt-2">{stats.clientCount}</p>
+          <div className="card bg-white p-6 rounded-lg shadow-md">
+            <h3 className="text-gray-600 text-sm font-medium">
+              Revenue (Paid)
+            </h3>
+            <p className="text-3xl font-bold text-calm-sand mt-2">
+              ${totalRevenue._sum.total?.toFixed(2) || '0.00'}
+            </p>
           </div>
         </div>
 
         {/* Quick Actions */}
-        <div className="flex flex-wrap gap-4 mb-10">
-          <Link href="/invoices/new" className="btn-primary">
-            + New Invoice
+        <div className="grid md:grid-cols-2 gap-4 mb-8">
+          <Link
+            href="/invoices/new"
+            className="btn-primary bg-calm-sky text-white p-4 rounded-lg text-center hover:bg-opacity-90 transition"
+          >
+            Create New Invoice
           </Link>
-          <Link href="/clients/new" className="btn-secondary">
-            + New Client
+          <Link
+            href="/clients/new"
+            className="btn-secondary bg-calm-mint text-gray-800 p-4 rounded-lg text-center hover:bg-opacity-90 transition"
+          >
+            Add New Client
           </Link>
         </div>
 
         {/* Recent Invoices */}
-        <div className="card">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-xl font-bold">Recent Invoices</h3>
-            <Link href="/invoices" className="text-calm-sky hover:underline text-sm">
-              View all
-            </Link>
-          </div>
-
-          {invoices.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-500 mb-4">No invoices yet</p>
-              <Link href="/invoices/new" className="btn-primary">
+        <div className="card bg-white p-6 rounded-lg shadow-md">
+          <h2 className="text-xl font-semibold mb-4">Recent Invoices</h2>
+          {recentInvoices.length === 0 ? (
+            <p className="text-gray-600">
+              No invoices yet.{' '}
+              <Link href="/invoices/new" className="text-calm-sky hover:underline">
                 Create your first invoice
               </Link>
-            </div>
+            </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="border-b border-gray-100">
-                    <th className="pb-3 text-sm font-medium text-gray-600">Number</th>
-                    <th className="pb-3 text-sm font-medium text-gray-600">Client</th>
-                    <th className="pb-3 text-sm font-medium text-gray-600">Status</th>
-                    <th className="pb-3 text-sm font-medium text-gray-600 text-right">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoices.map((invoice) => (
-                    <tr key={invoice.id} className="border-b border-gray-50 hover:bg-gray-50/50">
-                      <td className="py-4">
-                        <Link href={`/invoices/${invoice.id}`} className="text-calm-sky hover:underline font-medium">
-                          {invoice.number}
-                        </Link>
-                      </td>
-                      <td className="py-4 text-gray-700">{invoice.client.name}</td>
-                      <td className="py-4">
-                        <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium status-${invoice.status.toLowerCase()}`}>
-                          {invoice.status}
-                        </span>
-                      </td>
-                      <td className="py-4 text-right font-medium">${invoice.total.toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-4">
+              {recentInvoices.map((invoice: any) => (
+                <div
+                  key={invoice.id}
+                  className="flex justify-between items-center border-b pb-4"
+                >
+                  <div>
+                    <p className="font-semibold">{invoice.number}</p>
+                    <p className="text-sm text-gray-600">
+                      {invoice.client.name}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold">${invoice.total.toFixed(2)}</p>
+                    <span
+                      className={`text-xs px-2 py-1 rounded ${
+                        invoice.status === 'PAID'
+                          ? 'bg-green-100 text-green-800'
+                          : invoice.status === 'SENT'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      {invoice.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
-      </main>
+      </div>
     </div>
   );
 }

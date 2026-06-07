@@ -1,4 +1,4 @@
-// prisma/schema.prisma
+// Prisma Schema for InvoiceFlow MVP
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,12 +8,30 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime? @map("email_verified")
+  image         String?
+  password      String
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  accounts Account[]
+  sessions Session[]
+  clients Client[]
+  invoices Invoice[]
+
+  @@map("users")
+}
+
 model Account {
   id                String  @id @default(cuid())
-  userId            String
+  userId            String  @map("user_id")
   type              String
   provider          String
-  providerAccountId String
+  providerAccountId String  @map("provider_account_id")
   refresh_token     String?
   access_token      String?
   expires_at        Int?
@@ -25,82 +43,76 @@ model Account {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@map("accounts")
 }
 
 model Session {
   id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
   expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
 }
 
-model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
 
-  accounts Account[]
-  sessions Session[]
-  invoices Invoice[]
-  clients  Client[]
+  @@unique([identifier, token])
+  @@map("verification_tokens")
 }
 
 model Client {
   id        String   @id @default(cuid())
+  userId    String   @map("user_id")
   name      String
-  email     String
-  company   String?
+  email     String?
   phone     String?
   address   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  invoices  Invoice[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@index([userId])
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
+
+  @@map("clients")
 }
 
 model Invoice {
-  id          String      @id @default(cuid())
-  number      String      @unique
-  status      String      @default("DRAFT")
-  issueDate   DateTime    @default(now())
-  dueDate     DateTime
-  paidDate    DateTime?
-  subtotal    Float
-  taxRate     Float      @default(0)
-  taxAmount   Float      @default(0)
-  total       Float
-  notes       String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  userId      String
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  clientId    String
-  client      Client      @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  items       InvoiceItem[]
+  id        String        @id @default(cuid())
+  userId    String        @map("user_id")
+  clientId  String        @map("client_id")
+  number    String        @unique
+  status    String @default("DRAFT")
+  issueDate DateTime      @map("issue_date")
+  dueDate   DateTime      @map("due_date")
+  notes     String?
+  total     Float         @default(0)
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
 
-  @@index([userId])
-  @@index([clientId])
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client     Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  items      InvoiceItem[]
+
+  @@map("invoices")
 }
 
 model InvoiceItem {
-  id        String  @id @default(cuid())
-  name      String
-  description String?
-  quantity  Float
-  rate      Float
-  amount    Float
-  order     Int     @default(0)
-  invoiceId String
-  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  id          String  @id @default(cuid())
+  invoiceId   String  @map("invoice_id")
+  description String
+  quantity    Float   @default(1)
+  price       Float
+  total       Float   @default(0)
 
-  @@index([invoiceId])
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_items")
 }
