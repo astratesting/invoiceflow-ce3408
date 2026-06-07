@@ -5,10 +5,15 @@ import Link from "next/link";
 import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
 import { redirect } from "next/navigation";
 
+interface SearchParams {
+  status?: string;
+  search?: string;
+}
+
 export default async function InvoicesPage({
   searchParams,
 }: {
-  searchParams: { status?: string; search?: string };
+  searchParams: Promise<SearchParams>;
 }) {
   const session = await auth();
 
@@ -17,15 +22,16 @@ export default async function InvoicesPage({
   }
 
   const userId = (session.user as any).id;
+  const resolvedSearchParams = await searchParams;
 
   const where: any = { userId };
-  if (searchParams.status) {
-    where.status = searchParams.status;
+  if (resolvedSearchParams.status) {
+    where.status = resolvedSearchParams.status;
   }
-  if (searchParams.search) {
+  if (resolvedSearchParams.search) {
     where.OR = [
-      { number: { contains: searchParams.search, mode: "insensitive" } },
-      { client: { name: { contains: searchParams.search, mode: "insensitive" } } },
+      { number: { contains: resolvedSearchParams.search, mode: "insensitive" } },
+      { client: { name: { contains: resolvedSearchParams.search, mode: "insensitive" } } },
     ];
   }
 

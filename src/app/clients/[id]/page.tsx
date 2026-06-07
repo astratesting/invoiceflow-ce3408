@@ -6,11 +6,12 @@ import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
 import { redirect } from "next/navigation";
 import { notFound } from "next/navigation";
 
-interface Params {
-  params: { id: string };
+interface PageProps {
+  params: Promise<{ id: string }>;
 }
 
-export default async function ClientDetailPage({ params }: Params) {
+export default async function ClientDetailPage({ params }: PageProps) {
+  const { id } = await params;
   const session = await auth();
 
   if (!session?.user?.id) {
@@ -20,7 +21,7 @@ export default async function ClientDetailPage({ params }: Params) {
   const userId = (session.user as any).id;
 
   const client = await prisma.client.findFirst({
-    where: { id: params.id, userId },
+    where: { id, userId },
     include: {
       invoices: {
         orderBy: { createdAt: "desc" },
@@ -50,7 +51,7 @@ export default async function ClientDetailPage({ params }: Params) {
             </Link>
             <h1 className="text-2xl font-serif text-sky-dark">{client.name}</h1>
           </div>
-          <Link href="/invoices/new" className="btn-primary">
+          <Link href={`/invoices/new?clientId=${client.id}`} className="btn-primary">
             New Invoice for {client.name}
           </Link>
         </div>

@@ -7,11 +7,12 @@ import { redirect } from "next/navigation";
 import { notFound } from "next/navigation";
 import PDFButton from "@/components/PDFButton";
 
-interface Params {
-  params: { id: string };
+interface PageProps {
+  params: Promise<{ id: string }>;
 }
 
-export default async function InvoiceDetailPage({ params }: Params) {
+export default async function InvoiceDetailPage({ params }: PageProps) {
+  const { id } = await params;
   const session = await auth();
 
   if (!session?.user?.id) {
@@ -21,7 +22,7 @@ export default async function InvoiceDetailPage({ params }: Params) {
   const userId = (session.user as any).id;
 
   const invoice = await prisma.invoice.findFirst({
-    where: { id: params.id, userId },
+    where: { id, userId },
     include: { client: true, items: { orderBy: { order: "asc" } } },
   });
 

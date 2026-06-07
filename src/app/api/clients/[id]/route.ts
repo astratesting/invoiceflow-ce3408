@@ -5,8 +5,9 @@ import { auth } from "@/auth";
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -14,7 +15,7 @@ export async function GET(
   const userId = (session.user as any).id;
 
   const client = await prisma.client.findFirst({
-    where: { id: params.id, userId },
+    where: { id, userId },
     include: { invoices: true },
   });
 
@@ -27,8 +28,9 @@ export async function GET(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -40,7 +42,7 @@ export async function PATCH(
     const { name, email, company, phone, address } = body;
 
     const client = await prisma.client.findFirst({
-      where: { id: params.id, userId },
+      where: { id, userId },
     });
 
     if (!client) {
@@ -48,7 +50,7 @@ export async function PATCH(
     }
 
     const updated = await prisma.client.update({
-      where: { id: params.id },
+      where: { id },
       data: { name, email, company, phone, address },
       include: { invoices: true },
     });
@@ -62,8 +64,9 @@ export async function PATCH(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -71,14 +74,14 @@ export async function DELETE(
   const userId = (session.user as any).id;
 
   const client = await prisma.client.findFirst({
-    where: { id: params.id, userId },
+    where: { id, userId },
   });
 
   if (!client) {
     return NextResponse.json({ error: "Client not found" }, { status: 404 });
   }
 
-  await prisma.client.delete({ where: { id: params.id } });
+  await prisma.client.delete({ where: { id } });
 
   return NextResponse.json({ message: "Client deleted" });
 }

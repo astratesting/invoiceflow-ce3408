@@ -5,8 +5,9 @@ import { auth } from "@/auth";
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -14,7 +15,7 @@ export async function GET(
   const userId = (session.user as any).id;
 
   const invoice = await prisma.invoice.findFirst({
-    where: { id: params.id, userId },
+    where: { id, userId },
     include: { client: true, items: { orderBy: { order: "asc" } } },
   });
 
@@ -27,8 +28,9 @@ export async function GET(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -40,7 +42,7 @@ export async function PATCH(
     const { status, paidDate } = body;
 
     const invoice = await prisma.invoice.findFirst({
-      where: { id: params.id, userId },
+      where: { id, userId },
     });
 
     if (!invoice) {
@@ -48,7 +50,7 @@ export async function PATCH(
     }
 
     const updated = await prisma.invoice.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         ...(status && { status }),
         ...(paidDate && { paidDate: new Date(paidDate) }),
@@ -65,8 +67,9 @@ export async function PATCH(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -74,14 +77,14 @@ export async function DELETE(
   const userId = (session.user as any).id;
 
   const invoice = await prisma.invoice.findFirst({
-    where: { id: params.id, userId },
+    where: { id, userId },
   });
 
   if (!invoice) {
     return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
   }
 
-  await prisma.invoice.delete({ where: { id: params.id } });
+  await prisma.invoice.delete({ where: { id } });
 
   return NextResponse.json({ message: "Invoice deleted" });
 }
